@@ -1,4 +1,4 @@
 # Hybrid-Image
-## assignment of computer vision course
+assignment of computer vision course
 
 ## Using opencv.js
