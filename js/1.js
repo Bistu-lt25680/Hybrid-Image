@@ -3,6 +3,7 @@ const kernelSizeMax=100;
 const alphaSliderMax=100;
 const sigmaXSliderMax=15;
 const sigmaYSliderMax=15;
+let isGaussianBlur=true;
 
 function GetReady(){
     console.log('OpenCV.js is ready');
@@ -10,18 +11,8 @@ function GetReady(){
     document.getElementById('LoadImage1').addEventListener('click',()=>LoadImage('image1'));
     document.getElementById('LoadImage2').addEventListener('click',()=>LoadImage('image2'));
     document.getElementById('saveImage').addEventListener('click',SaveResult);
-    if(document.getElementById('jumptoindex')){
-        document.getElementById('ProcessImages').addEventListener('click',ProcessImagesByGaussianPyramid);
-        document.getElementById('jumptoindex').addEventListener('click',()=>{
-            window.location.href='index.html';
-        });
-    }
-    if(document.getElementById('jumptopyramid')){
-        document.getElementById('ProcessImages').addEventListener('click',ProcessImagesByGaussianBlur);
-        document.getElementById('jumptopyramid').addEventListener('click',()=>{
-            window.location.href='Gaussian-Pyramid.html';
-        });
-    }
+    document.getElementById('change').addEventListener('click',ToggleMethod);
+    document.getElementById('ProcessImages').addEventListener('click',ProcessImages);
     
     const sliders=['alphaSlider','kernel1Slider','kernel2Slider','sigmaXSlider','sigmaYSlider'];
     sliders.forEach(sliderId=>{
@@ -33,26 +24,29 @@ function GetReady(){
         }
     });
 }
-
+function ToggleMethod() {
+    isGaussianBlur = !isGaussianBlur;
+    const changeButton = document.getElementById('change');
+    changeButton.textContent = isGaussianBlur ? '正在使用高斯滤波' : '正在使用高斯金字塔';
+    ProcessImages();
+}
+function ProcessImages() {
+    if (isGaussianBlur) {
+        ProcessImagesByGaussianBlur();
+    } else {
+        ProcessImagesByGaussianPyramid();
+    }
+}
 function UpdateSliderValue(e){
     // 获取滑动条的值
     const valueElement=document.getElementById(`${e.target.id}Value`);
     if(valueElement){
         // 更新滑动条的值
         valueElement.textContent=e.target.value;
-        if(document.getElementById('jumptoindex')){
-            ProcessImagesByGaussianPyramid();
-        }else{
-            ProcessImagesByGaussianBlur();
-        }
     }else{
         console.error(`未找到与滑动条 ${e.target.id} 对应的值显示元素，但继续处理图像`);
-        if(document.getElementById('jumptoindex')){
-            ProcessImagesByGaussianPyramid();
-        }else{
-            ProcessImagesByGaussianBlur();
-        }
     }
+    ProcessImages();
 }
 function LoadImage(imageId){
     const input=document.createElement('input');
@@ -135,7 +129,6 @@ function ProcessImagesByGaussianBlur(){
     highFreqEnhanced.delete();
     lowFreq.delete();
 }
-
 function ProcessImagesByGaussianPyramid() {
     console.log('开始处理图像');
     // 检查opencv.js
@@ -156,7 +149,6 @@ function ProcessImagesByGaussianPyramid() {
     let kernel2 = parseInt(document.getElementById('kernel2Slider').value);
     let sigmaX = parseFloat(document.getElementById('sigmaXSlider').value);
     let sigmaY = parseFloat(document.getElementById('sigmaYSlider').value);
-    console.log(`参数: alpha=${alpha}, kernel1=${kernel1}, kernel2=${kernel2}, sigmaX=${sigmaX}, sigmaY=${sigmaY}`);
     
     // 调整图片尺寸
     cv.resize(img2, img2, new cv.Size(img1.cols, img1.rows));
@@ -232,11 +224,6 @@ function ProcessImagesByGaussianPyramid() {
     result.delete();
 
 }
-
-
-
-
-
 function SaveResult(){
     const canvas=document.getElementById('resultCanvas');
     if(canvas){
@@ -248,7 +235,6 @@ function SaveResult(){
         console.error('没有可保存的结果');
     }
 }
-
 (()=>{
     document.addEventListener('DOMContentLoaded',()=>{
         if(typeof cv!=='undefined'){
