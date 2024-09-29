@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>Gaussian Blur</title>
+    <title>Gaussian Pyramid</title>
     <script src="./opencv.js"></script>
     <style>
         body{
@@ -72,7 +72,7 @@
         <button id="LoadImage2">加载图片2</button>
         <button id="ProcessImages">处理图像</button>
         <button id="saveImage">保存结果</button>
-        <button id="jump">高斯金字塔</button>
+        <button id="jump">高斯滤波</button>
     </div>
 
     <div class="image-container">
@@ -138,7 +138,7 @@
             document.getElementById('saveImage').addEventListener('click',SaveResult);
             document.getElementById('jump').addEventListener('click',()=>{
                 let link=document.createElement('a');
-                link.href='Gaussian-Pyramid.html';
+                link.href='index.html';
                 link.click();
             });
            
@@ -178,71 +178,101 @@
             };
             input.click();
         }
-        function ProcessImages(){
+        function ProcessImages() {
+            console.log('开始处理图像');
             // 检查opencv.js
-            if(typeof cv==='undefined'){
+            if (typeof cv === 'undefined') {
                 console.error('OpenCV.js is not loaded yet');
                 return;
             }
             // 读取图片
-            img1=cv.imread('image1');
-            img2=cv.imread('image2');
+            let img1 = cv.imread('image1');
+            let img2 = cv.imread('image2');
 
-            if(img1.empty()||img2.empty()){
+            if (img1.empty() || img2.empty()) {
                 console.error('图像读取失败');
                 return;
             }
+            let alpha = parseInt(document.getElementById('alphaSlider').value) / alphaSliderMax;
+            let kernel1 = parseInt(document.getElementById('kernel1Slider').value);
+            let kernel2 = parseInt(document.getElementById('kernel2Slider').value);
+            let sigmaX = parseFloat(document.getElementById('sigmaXSlider').value);
+            let sigmaY = parseFloat(document.getElementById('sigmaYSlider').value);
+            console.log(`参数: alpha=${alpha}, kernel1=${kernel1}, kernel2=${kernel2}, sigmaX=${sigmaX}, sigmaY=${sigmaY}`);
+            
             // 调整图片尺寸
-            cv.resize(img2,img2,new cv.Size(img1.cols,img1.rows));
+            cv.resize(img2, img2, new cv.Size(img1.cols, img1.rows));
 
-            let imgCatGaus=new cv.Mat();
-            let imgDogGaus=new cv.Mat();
-            let highFreq=new cv.Mat();
-            let lowFreq=new cv.Mat();
-            result=new cv.Mat();
+            let img1Original = img1.clone();
+            let img2Original = img2.clone();
 
-            // 获取滑动条的值
-            let alpha=parseInt(document.getElementById('alphaSlider').value)/alphaSliderMax;
-            let kernel1=parseInt(document.getElementById('kernel1Slider').value);
-            let kernel2=parseInt(document.getElementById('kernel2Slider').value);
-            let sigmaX=parseInt(document.getElementById('sigmaXSlider').value);
-            let sigmaY=parseInt(document.getElementById('sigmaYSlider').value);
+            let temp1 = new cv.Mat();
+            let temp2 = new cv.Mat();
 
-            // 高斯滤波
-            cv.GaussianBlur(img1,imgCatGaus,new cv.Size(kernel1,kernel1),sigmaX,sigmaY);
-            cv.GaussianBlur(img2,imgDogGaus,new cv.Size(kernel2,kernel2),sigmaX,sigmaY);
+            // 三次高斯模糊和缩小操作
+            for (let i = 0; i < 3; i++) {
+                cv.GaussianBlur(img1, img1, new cv.Size(kernel1, kernel1), sigmaX, sigmaY);
+                cv.GaussianBlur(img2, img2, new cv.Size(kernel2, kernel2), sigmaX, sigmaY);
 
-            // 获取高频
-            cv.subtract(img1,imgCatGaus,highFreq);
+                // 缩小图像，保持宽高比
+                let newSize1 = new cv.Size(Math.max(1, Math.floor(img1.cols / 2)), Math.max(1, Math.floor(img1.rows / 2)));
+                let newSize2 = new cv.Size(Math.max(1, Math.floor(img2.cols / 2)), Math.max(1, Math.floor(img2.rows / 2)));
+                cv.resize(img1, temp1, newSize1, 0, 0, cv.INTER_AREA);
+                cv.resize(img2, temp2, newSize2, 0, 0, cv.INTER_AREA);
+
+                // 将缩小后的图像赋值回原变量
+                temp1.copyTo(img1);
+                temp2.copyTo(img2);
+            }
+
+
+            // 放大三次
+            for (let i = 0; i < 3; i++) {
+                let newSize1 = new cv.Size(img1.cols * 2, img1.rows * 2);
+                let newSize2 = new cv.Size(img2.cols * 2, img2.rows * 2);
+                cv.resize(img1, img1, newSize1, 0, 0, cv.INTER_LINEAR);
+                cv.resize(img2, img2, newSize2, 0, 0, cv.INTER_LINEAR);
+            }
+
+
+            // 确保所有图像尺寸相同
+            cv.resize(img1, img1, new cv.Size(img1Original.cols, img1Original.rows));
+            cv.resize(img2, img2, new cv.Size(img1Original.cols, img1Original.rows));
+
+            // 计算高频部分
+            let imgHighFreq = new cv.Mat();
+            cv.subtract(img1Original, img1, imgHighFreq);
 
             // 归一化
             let normalized = new cv.Mat();
-            cv.normalize(highFreq, normalized, 0, 255, cv.NORM_MINMAX, cv.CV_8U);
+            cv.normalize(imgHighFreq, normalized, 0, 255, cv.NORM_MINMAX, cv.CV_8U);
 
             // 增强对比度
             let highFreqEnhanced=new cv.Mat();
-            cv.convertScaleAbs(normalized,highFreqEnhanced,2,128);
+            cv.convertScaleAbs(normalized,highFreqEnhanced,1,128);
 
-            //获取低频
-            lowFreq=imgDogGaus;
+            // 显示高频和低频部分
+            cv.imshow('image1HighFreq', highFreqEnhanced);
+            cv.imshow('image2LowFreq', img2);
 
-            // 混合
-            cv.addWeighted(highFreqEnhanced,alpha,lowFreq,1.0-alpha,0.0,result);
+            let result = new cv.Mat();
+            cv.addWeighted(highFreqEnhanced, alpha, img2, 1.0 - alpha, 0.0, result);
 
-            // 打印图片
-            cv.imshow('image1HighFreq',highFreqEnhanced);
-            cv.imshow('image2LowFreq',lowFreq);
-            cv.imshow('resultCanvas',result);
+            // 显示最终结果
+            cv.imshow('resultCanvas', result);
 
             // 释放内存
             img1.delete();
-            img2.delete(); 
-            imgCatGaus.delete(); 
-            imgDogGaus.delete(); 
-            highFreq.delete();
+            img2.delete();
+            img1Original.delete();
+            img2Original.delete();
+            temp1.delete();
+            temp2.delete();
             normalized.delete();
             highFreqEnhanced.delete();
-            lowFreq.delete();
+            imgHighFreq.delete();
+            result.delete();
+
         }
         function SaveResult(){
             const canvas=document.getElementById('resultCanvas');
